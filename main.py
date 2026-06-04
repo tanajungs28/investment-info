@@ -94,6 +94,8 @@ def run(webhook_url: str, anthropic_api_key: str) -> bool:
 
 
 if __name__ == "__main__":
+    import sys
     webhook = os.environ["SLACK_WEBHOOK_URL"]
     api_key = os.environ["ANTHROPIC_API_KEY"]
-    run(webhook_url=webhook, anthropic_api_key=api_key)
+    success = run(webhook_url=webhook, anthropic_api_key=api_key)
+    sys.exit(0 if success else 1)

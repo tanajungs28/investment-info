@@ -7,8 +7,8 @@
   <string>com.investment-agent.morning-report</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/juntanaka/Applications/investment-info/venv/bin/python</string>
-    <string>/Users/juntanaka/Applications/investment-info/main.py</string>
+    <string>/bin/bash</string>
+    <string>/Users/juntanaka/Applications/investment-info/run.sh</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>
@@ -16,13 +16,6 @@
     <integer>6</integer>
     <key>Minute</key>
     <integer>0</integer>
-  </dict>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>ANTHROPIC_API_KEY</key>
-    <string>YOUR_ANTHROPIC_API_KEY</string>
-    <key>SLACK_WEBHOOK_URL</key>
-    <string>YOUR_SLACK_WEBHOOK_URL</string>
   </dict>
   <key>StandardOutPath</key>
   <string>/Users/juntanaka/Applications/investment-info/logs/stdout.log</string>

@@ -76,9 +76,10 @@ def _build_prompt(
 （銘柄コード）: （ニュースに基づく具体的な値動き理由。該当ニュースがなければ「関連ニュースなし」）
 
 【今日の注目ポイント】
-① （市場全体への影響・投資家が注目すべきポイントを1〜2文で）
-② （セクター・テーマへの波及効果や注意点を1〜2文で）
-③ （今後の見通しや注目イベントを1〜2文で）"""
+（投資判断に直結する具体的な情報を必ず含めること。抽象的な表現は避け、銘柄名・数値・イベント名を明記すること）
+① （最も重要な値動きと市場全体への影響：どの銘柄/セクターが何%動き、その背景と連鎖影響を2〜3文で）
+② （今日の経済指標・決算・イベントが市場に与えるインパクト：具体的な数値や企業名を挙げて2〜3文で）
+③ （明日以降の注目点・リスク：次に来るイベントや警戒すべき動きを具体的に2〜3文で）"""
 
 
 def _parse_response(text: str, market_data: dict) -> SummaryResult:
@@ -131,7 +132,7 @@ def generate_summary(
         prompt = _build_prompt(news_items, market_data, mover_news)
         response = client.messages.create(
             model=model,
-            max_tokens=2000,
+            max_tokens=3000,
             messages=[{"role": "user", "content": prompt}],
         )
         text = response.content[0].text

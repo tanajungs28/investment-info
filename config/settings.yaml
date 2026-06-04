@@ -1,0 +1,21 @@
+slack:
+  channel: "#morning-report"
+  report_time: "06:00"
+  timezone: "Asia/Tokyo"
+
+news:
+  lookback_hours: 24
+  rss_feeds:
+    jp:
+      - url: "https://kabutan.jp/news/rss/"
+        name: "株探"
+      - url: "https://feeds.reuters.com/reuters/JPBusinessNews"
+        name: "Reuters Japan"
+
+calendar:
+  forex_factory_rss: "https://www.forexfactory.com/ff_calendar_thisweek.xml"
+  min_importance: 2
+
+claude:
+  model: "claude-haiku-4-5-20251001"
+  max_tokens: 1000

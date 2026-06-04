@@ -9,7 +9,7 @@ indices:
   jp:
     - ticker: "^N225"
       name: "日経225"
-    - ticker: "^TOPIX"
+    - ticker: "1306.T"
       name: "TOPIX"
 
 forex:

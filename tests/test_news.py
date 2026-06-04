@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
-from collectors.news import fetch_rss_news, match_tickers, collect_news, NewsItem
+from collectors.news import fetch_rss_news, fetch_yfinance_news, match_tickers, collect_news, NewsItem
 
 
 def make_entry(title: str, published: datetime) -> MagicMock:
@@ -46,6 +46,40 @@ def test_match_tickers_finds_ticker_symbol():
     )
     result = match_tickers([item], watchlist)
     assert "AAPL" in result[0].tickers
+
+
+def test_fetch_yfinance_news_returns_items():
+    stocks = [{"ticker": "NVDA", "name": "NVIDIA"}]
+    mock_article = {
+        "title": "NVIDIA posts record earnings",
+        "link": "https://example.com/nvda-earnings",
+        "publisher": "Reuters",
+        "providerPublishTime": int((datetime.now(timezone.utc) - timedelta(hours=2)).timestamp()),
+    }
+    with patch("collectors.news.yf.Ticker") as mock_ticker_cls:
+        mock_ticker = MagicMock()
+        mock_ticker.news = [mock_article]
+        mock_ticker_cls.return_value = mock_ticker
+        items = fetch_yfinance_news(stocks)
+    assert len(items) == 1
+    assert items[0].title == "NVIDIA posts record earnings"
+    assert "NVDA" in items[0].tickers
+
+
+def test_fetch_yfinance_news_skips_old_articles():
+    stocks = [{"ticker": "AAPL", "name": "Apple"}]
+    old_article = {
+        "title": "Old news",
+        "link": "https://example.com/old",
+        "publisher": "Reuters",
+        "providerPublishTime": int((datetime.now(timezone.utc) - timedelta(hours=72)).timestamp()),
+    }
+    with patch("collectors.news.yf.Ticker") as mock_ticker_cls:
+        mock_ticker = MagicMock()
+        mock_ticker.news = [old_article]
+        mock_ticker_cls.return_value = mock_ticker
+        items = fetch_yfinance_news(stocks, lookback_hours=48)
+    assert len(items) == 0
 
 
 def test_match_tickers_strips_dot_t_for_jp_stocks():

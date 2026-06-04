@@ -91,6 +91,8 @@ def build_report_blocks(data: dict) -> list[dict]:
 
     blocks.append({"type": "divider"})
 
+    mover_explanations: dict[str, str] = summary.mover_explanations if summary else {}
+
     all_stocks: list[PriceData] = market.get("us_stocks", []) + market.get("jp_stocks", [])
     movers = sorted(
         [s for s in all_stocks if abs(s.change_pct) >= 1.0],
@@ -106,6 +108,9 @@ def build_report_blocks(data: dict) -> list[dict]:
                 if ratio >= 1.5:
                     line += f"  出来高 {ratio:.1f}倍"
             mover_lines.append(line)
+            explanation = mover_explanations.get(s.ticker)
+            if explanation:
+                mover_lines.append(f"  └ {explanation}")
         blocks.append({
             "type": "section",
             "text": {
@@ -115,15 +120,24 @@ def build_report_blocks(data: dict) -> list[dict]:
         })
         blocks.append({"type": "divider"})
 
-    ticker_news: dict[str, list[str]] = {}
+    from collectors.news import NewsItem as _NewsItem
+
+    ticker_news: dict[str, list[_NewsItem]] = {}
+    general_news: list[_NewsItem] = []
     for item in news_items:
-        for ticker in item.tickers:
-            ticker_news.setdefault(ticker, []).append(item.title)
-    if ticker_news:
+        if item.tickers:
+            for ticker in item.tickers:
+                ticker_news.setdefault(ticker, []).append(item)
+        else:
+            general_news.append(item)
+
+    if ticker_news or general_news:
         news_lines = []
-        for ticker, titles in list(ticker_news.items())[:8]:
-            for title in titles[:2]:
-                news_lines.append(f"[{ticker}] {title}")
+        for ticker, items_for_ticker in list(ticker_news.items())[:12]:
+            for item in items_for_ticker[:3]:
+                news_lines.append(f"[{ticker}] {item.title}  _({item.source})_")
+        for item in general_news[:5]:
+            news_lines.append(f"[市場全般] {item.title}  _({item.source})_")
         blocks.append({
             "type": "section",
             "text": {"type": "mrkdwn", "text": "📰 *注目ニュース*\n" + "\n".join(news_lines)},

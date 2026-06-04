@@ -24,17 +24,40 @@ def make_market_data() -> dict:
     }
 
 
+STRUCTURED_RESPONSE = """\
+【値動きの背景】
+NVDA: NVIDIAが新型GPU発表を受けて買いが集まり上昇。
+【今日の注目ポイント】
+① ポイント1
+② ポイント2
+③ ポイント3"""
+
+
 @patch("reporters.claude_client.anthropic.Anthropic")
 def test_generate_summary_returns_summary_result(mock_anthropic_cls):
     mock_client = MagicMock()
     mock_anthropic_cls.return_value = mock_client
     mock_response = MagicMock()
-    mock_response.content = [MagicMock(text="① ポイント1\n② ポイント2\n③ ポイント3")]
+    mock_response.content = [MagicMock(text=STRUCTURED_RESPONSE)]
     mock_client.messages.create.return_value = mock_response
 
     result = generate_summary(make_news_items(), make_market_data(), api_key="test-key")
     assert isinstance(result, SummaryResult)
     assert len(result.key_points) >= 1
+
+
+@patch("reporters.claude_client.anthropic.Anthropic")
+def test_generate_summary_populates_mover_explanations(mock_anthropic_cls):
+    mock_client = MagicMock()
+    mock_anthropic_cls.return_value = mock_client
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text=STRUCTURED_RESPONSE)]
+    mock_client.messages.create.return_value = mock_response
+
+    result = generate_summary(make_news_items(), make_market_data(), api_key="test-key")
+    assert result is not None
+    assert "NVDA" in result.mover_explanations
+    assert "GPU" in result.mover_explanations["NVDA"]
 
 
 @patch("reporters.claude_client.anthropic.Anthropic")

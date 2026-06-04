@@ -33,7 +33,10 @@ def make_report_data() -> dict:
             )
         ],
         "calendar": [EconomicEvent("22:30", "USD", "CPI (MoM)", 3)],
-        "summary": SummaryResult(key_points=["① CPIに注目", "② NVDAモメンタム", "③ 円安一服"]),
+        "summary": SummaryResult(
+            key_points=["① CPIに注目", "② NVDAモメンタム", "③ 円安一服"],
+            mover_explanations={"NVDA": "新型GPU発表を受けて買いが集まり上昇。"},
+        ),
     }
 
 
@@ -47,6 +50,18 @@ def test_build_report_blocks_contains_sp500():
     blocks = build_report_blocks(make_report_data())
     all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
     assert "S&P 500" in all_text
+
+
+def test_build_report_blocks_shows_mover_explanation():
+    blocks = build_report_blocks(make_report_data())
+    all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
+    assert "新型GPU発表" in all_text
+
+
+def test_build_report_blocks_shows_news_source():
+    blocks = build_report_blocks(make_report_data())
+    all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
+    assert "株探" in all_text
 
 
 def test_build_report_blocks_contains_claude_summary():

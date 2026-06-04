@@ -16,57 +16,73 @@ class SummaryResult:
     mover_explanations: dict[str, str] = field(default_factory=dict)
 
 
-def _build_prompt(news_items: list[NewsItem], market_data: dict) -> str:
-    news_lines = []
-    for item in news_items[:40]:
-        tickers = ", ".join(item.tickers) if item.tickers else "市場全般"
-        news_lines.append(f"[{tickers}] {item.title}")
-
+def _build_prompt(
+    news_items: list[NewsItem],
+    market_data: dict,
+    mover_news: dict[str, list[NewsItem]] | None = None,
+) -> str:
     movers: list[PriceData] = []
     for stock in market_data.get("us_stocks", []) + market_data.get("jp_stocks", []):
         if isinstance(stock, PriceData) and abs(stock.change_pct) >= 1.0:
             movers.append(stock)
     movers.sort(key=lambda s: abs(s.change_pct), reverse=True)
 
-    mover_lines = []
-    for s in movers:
+    mover_detail_sections: list[str] = []
+    for s in movers[:10]:
         direction = "▲" if s.change_pct > 0 else "▼"
-        mover_lines.append(f"{s.ticker} ({s.name}) {direction}{abs(s.change_pct):.1f}%")
+        header = f"### {s.ticker} ({s.name}) {direction}{abs(s.change_pct):.1f}%"
 
-    news_text = "\n".join(news_lines) if news_lines else "ニュースなし"
-    movers_text = "\n".join(mover_lines) if mover_lines else "なし"
-    mover_tickers = [s.ticker for s in movers] if movers else []
+        lines: list[str] = []
+        if mover_news:
+            for item in mover_news.get(s.ticker, [])[:5]:
+                lines.append(f"  - [{item.source}] {item.title}")
+        for item in news_items:
+            if s.ticker in item.tickers and len(lines) < 8:
+                lines.append(f"  - [{item.source}] {item.title}")
 
-    explanation_section = ""
-    if mover_tickers:
-        ticker_list = "\n".join(f"- {t}" for t in mover_tickers)
-        explanation_section = f"""
-【値動きの背景】セクションでは、以下の各銘柄について値動きの理由をニュースから読み取り1〜2文で説明してください：
-{ticker_list}
+        section = header + ("\n" + "\n".join(lines) if lines else "\n  (関連ニュースなし)")
+        mover_detail_sections.append(section)
 
-"""
+    general_lines: list[str] = []
+    for item in news_items[:30]:
+        if not item.tickers:
+            general_lines.append(f"  [{item.source}] {item.title}")
 
-    return f"""以下は本日の株式市場のニュースと値動きです。
+    mover_tickers = [s.ticker for s in movers]
+    ticker_list = "\n".join(f"- {t}" for t in mover_tickers) if mover_tickers else "（なし）"
 
-## 直近ニュース
-{news_text}
+    mover_details = "\n\n".join(mover_detail_sections) if mover_detail_sections else "（値動きなし）"
+    general_text = "\n".join(general_lines) if general_lines else "（なし）"
 
-## 主な値動き（±1%以上）
-{movers_text}
+    return f"""以下は本日の株式市場データです。各銘柄の値動きの背景をニュースから読み解いてください。
+
+## 値動き銘柄別ニュース詳細
+（各銘柄のニュースを確認し、値動きの理由を特定してください）
+
+{mover_details}
+
+## 市場全般ニュース（補足）
+{general_text}
+
+---
 
 上記をもとに、以下の形式で回答してください。
 
 【値動きの背景】
-{explanation_section}（各銘柄コード）: （ニュースに基づく値動きの理由を1〜2文で。該当ニュースがなければ「関連ニュースなし」）
+以下の各銘柄について、上記ニュースに基づいて値動きの具体的な理由を1〜2文で説明してください。
+（「〇〇が発表した…により…」のように、具体的なニュース内容に言及してください）
+{ticker_list}
+
+（銘柄コード）: （ニュースに基づく具体的な値動き理由。該当ニュースがなければ「関連ニュースなし」）
 
 【今日の注目ポイント】
-① （ポイント1を1〜2文で）
-② （ポイント2を1〜2文で）
-③ （ポイント3を1〜2文で）"""
+① （市場全体への影響・投資家が注目すべきポイントを1〜2文で）
+② （セクター・テーマへの波及効果や注意点を1〜2文で）
+③ （今後の見通しや注目イベントを1〜2文で）"""
 
 
 def _parse_response(text: str, market_data: dict) -> SummaryResult:
-    mover_tickers = set()
+    mover_tickers: set[str] = set()
     for stock in market_data.get("us_stocks", []) + market_data.get("jp_stocks", []):
         if isinstance(stock, PriceData) and abs(stock.change_pct) >= 1.0:
             mover_tickers.add(stock.ticker)
@@ -108,10 +124,11 @@ def generate_summary(
     market_data: dict,
     api_key: str,
     model: str = "claude-haiku-4-5-20251001",
+    mover_news: dict[str, list[NewsItem]] | None = None,
 ) -> SummaryResult | None:
     try:
         client = anthropic.Anthropic(api_key=api_key)
-        prompt = _build_prompt(news_items, market_data)
+        prompt = _build_prompt(news_items, market_data, mover_news)
         response = client.messages.create(
             model=model,
             max_tokens=2000,

@@ -6,9 +6,10 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from collectors.market import get_market_data
+from collectors.market import get_market_data, PriceData
 from collectors.news import collect_news
 from collectors.calendar import parse_forex_factory_events
+from collectors.web_search import fetch_mover_news
 from reporters.claude_client import generate_summary
 from reporters.slack import post_report
 
@@ -65,12 +66,18 @@ def run(webhook_url: str, anthropic_api_key: str) -> bool:
         min_importance=st["calendar"]["min_importance"],
     )
 
+    logger.info("Fetching web news for notable movers...")
+    all_stocks_data: list[PriceData] = market.get("us_stocks", []) + market.get("jp_stocks", [])
+    movers = [s for s in all_stocks_data if isinstance(s, PriceData) and abs(s.change_pct) >= 1.0]
+    mover_news = fetch_mover_news(movers) if movers else {}
+
     logger.info("Generating Claude summary...")
     summary = generate_summary(
         news_items=news,
         market_data=market,
         api_key=anthropic_api_key,
         model=st["claude"]["model"],
+        mover_news=mover_news,
     )
 
     logger.info("Posting to Slack...")

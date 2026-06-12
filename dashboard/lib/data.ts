@@ -87,7 +87,14 @@ function withDate<T>(rows: T[], date: string): (T & { snapshot_date: string })[]
 export async function getDashboardData(): Promise<DashboardData> {
   if (!PROJECT_ID || !API_KEY) return MOCK_DATA;
 
-  const reports = await fetchRecentReports(HISTORY_DAYS);
+  let reports: ReportDoc[];
+  try {
+    reports = await fetchRecentReports(HISTORY_DAYS);
+  } catch (e) {
+    // DB 未作成・障害時もページは落とさずデモ表示に退避する
+    console.error("Falling back to demo data:", e);
+    return { ...MOCK_DATA, isDemo: true };
+  }
   const latest = reports[0];
   if (!latest) return { ...MOCK_DATA, isDemo: true };
 

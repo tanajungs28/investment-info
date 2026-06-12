@@ -1,0 +1,27 @@
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  list-style: none;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background: oklch(20% 0.028 255 / 0.7);
+  backdrop-filter: blur(8px);
+  font-size: var(--text-sm);
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+}
+
+.name {
+  color: var(--text-low);
+}
+
+.price {
+  color: var(--text-hi);
+}

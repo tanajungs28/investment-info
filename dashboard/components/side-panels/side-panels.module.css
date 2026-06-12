@@ -1,0 +1,73 @@
+.calendar {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 3.2em 2.8em 1fr auto;
+  align-items: baseline;
+  gap: 0.6em;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.event:last-child {
+  border-bottom: none;
+}
+
+.time {
+  color: var(--text-mid);
+}
+
+.currency {
+  font-family: var(--font-num);
+  font-size: var(--text-xs);
+  color: var(--text-low);
+}
+
+.eventTitle {
+  color: var(--text-hi);
+}
+
+.stars,
+.starsHigh {
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+}
+
+.stars {
+  color: var(--text-low);
+}
+
+.starsHigh {
+  color: var(--accent);
+}
+
+.summaryCard {
+  border-left: 3px solid var(--accent);
+}
+
+.points {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: 1.3em;
+  font-size: var(--text-sm);
+  color: var(--text-hi);
+}
+
+.points li::marker {
+  color: var(--accent);
+  font-family: var(--font-num);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-low);
+  font-size: var(--text-sm);
+}

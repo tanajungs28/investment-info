@@ -1,0 +1,77 @@
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-3) var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.kicker {
+  margin: 0;
+  font-family: var(--font-num);
+  font-size: var(--text-xs);
+  letter-spacing: 0.35em;
+  color: var(--accent);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-hero);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.titleSub {
+  margin-left: 0.3em;
+  font-size: 0.55em;
+  font-weight: 500;
+  color: var(--text-mid);
+}
+
+.demoBadge {
+  padding: 0.25em 0.9em;
+  border-radius: var(--radius-chip);
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-num);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.mainCol,
+.sideCol {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.footer {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--text-xs);
+  color: var(--text-low);
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

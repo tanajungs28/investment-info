@@ -12,6 +12,7 @@ from collectors.calendar import parse_forex_factory_events
 from collectors.web_search import fetch_mover_news
 from reporters.claude_client import generate_summary
 from reporters.slack import post_report
+from storage.supabase_store import store_report
 
 load_dotenv()
 
@@ -88,17 +89,25 @@ def run(webhook_url: str, anthropic_api_key: str) -> bool:
         mover_news=mover_news,
     )
 
+    report_data = {
+        "market": market,
+        "news": news,
+        "calendar": calendar,
+        "summary": summary,
+        "volume_anomalies": anomalies,
+    }
+
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if supabase_url and supabase_key:
+        logger.info("Storing report data to Supabase...")
+        # 永続化の失敗でレポート投稿は止めない
+        store_report(report_data, supabase_url=supabase_url, service_key=supabase_key)
+    else:
+        logger.info("Supabase not configured; skipping persistence.")
+
     logger.info("Posting to Slack...")
-    result = post_report(
-        data={
-            "market": market,
-            "news": news,
-            "calendar": calendar,
-            "summary": summary,
-            "volume_anomalies": anomalies,
-        },
-        webhook_url=webhook_url,
-    )
+    result = post_report(data=report_data, webhook_url=webhook_url)
 
     if result:
         logger.info("Report posted successfully.")

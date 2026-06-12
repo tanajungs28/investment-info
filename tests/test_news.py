@@ -22,6 +22,20 @@ def test_fetch_rss_keeps_only_last_24h(mock_parse):
     assert items[0].title == "Recent news"
 
 
+@patch("collectors.news.feedparser.parse")
+def test_fetch_rss_falls_back_to_updated_date_for_rdf_feeds(mock_parse):
+    now = datetime.now(timezone.utc)
+    entry = MagicMock()
+    entry.title = "RDF形式のニュース"
+    entry.link = "https://example.com/rdf-news"
+    entry.published_parsed = None
+    entry.updated_parsed = (now - timedelta(hours=1)).timetuple()
+    mock_parse.return_value.entries = [entry]
+    items = fetch_rss_news("http://example.com/rdf", "Test Source", lookback_hours=24)
+    assert len(items) == 1
+    assert items[0].title == "RDF形式のニュース"
+
+
 def test_match_tickers_finds_company_name():
     watchlist = [{"ticker": "NVDA", "name": "NVIDIA"}]
     item = NewsItem(
@@ -80,6 +94,45 @@ def test_fetch_yfinance_news_skips_old_articles():
         mock_ticker_cls.return_value = mock_ticker
         items = fetch_yfinance_news(stocks, lookback_hours=48)
     assert len(items) == 0
+
+
+def test_match_tickers_finds_japanese_alias():
+    watchlist = [{"ticker": "NVDA", "name": "NVIDIA", "aliases": ["エヌビディア"]}]
+    item = NewsItem(
+        title="エヌビディア、新型GPUを発表",
+        url="http://example.com",
+        source="Test",
+        published=datetime.now(timezone.utc),
+        tickers=[],
+    )
+    result = match_tickers([item], watchlist)
+    assert "NVDA" in result[0].tickers
+
+
+def test_match_tickers_short_ticker_does_not_match_inside_word():
+    watchlist = [{"ticker": "MO", "name": "Altria Group"}]
+    item = NewsItem(
+        title="MORNING market update for investors",
+        url="http://example.com",
+        source="Test",
+        published=datetime.now(timezone.utc),
+        tickers=[],
+    )
+    result = match_tickers([item], watchlist)
+    assert result[0].tickers == []
+
+
+def test_match_tickers_short_ticker_matches_as_standalone_word():
+    watchlist = [{"ticker": "MO", "name": "Altria Group"}]
+    item = NewsItem(
+        title="MO shares rise after dividend hike",
+        url="http://example.com",
+        source="Test",
+        published=datetime.now(timezone.utc),
+        tickers=[],
+    )
+    result = match_tickers([item], watchlist)
+    assert "MO" in result[0].tickers
 
 
 def test_match_tickers_strips_dot_t_for_jp_stocks():

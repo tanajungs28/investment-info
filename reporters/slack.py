@@ -25,17 +25,20 @@ def _format_index_line(s: PriceData) -> str:
     return f"{s.name:<20} {s.price:>12,.2f}  {_pct_str(s.change_pct)} {_arrow(s.change_pct)}"
 
 
-def _format_sector_summary(sectors: list[PriceData], top_n: int = 3) -> str:
-    if not sectors:
-        return "データなし"
+SECTOR_BAR_WIDTH = 8
+
+
+def _format_sector_bars(sectors: list[PriceData], bar_width: int = SECTOR_BAR_WIDTH) -> str:
     ranked = sorted(sectors, key=lambda s: s.change_pct, reverse=True)
-    top = " / ".join(
-        f"{s.name} {_pct_str(s.change_pct)}" for s in ranked[:top_n]
-    )
-    bottom = " / ".join(
-        f"{s.name} {_pct_str(s.change_pct)}" for s in ranked[-top_n:]
-    )
-    return f"上位: {top}\n  下位: {bottom}"
+    max_abs = max((abs(s.change_pct) for s in ranked), default=0) or 1.0
+    lines = []
+    for s in ranked:
+        length = round(abs(s.change_pct) / max_abs * bar_width)
+        if s.change_pct != 0:
+            length = max(1, length)
+        bar = ("█" if s.change_pct >= 0 else "▒") * length
+        lines.append(f"{s.name:<16} {_pct_str(s.change_pct):>7} {bar}")
+    return "\n".join(lines)
 
 
 def build_report_blocks(data: dict) -> list[dict]:
@@ -76,7 +79,8 @@ def build_report_blocks(data: dict) -> list[dict]:
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "📈 *セクター動向（米国）*\n  " + _format_sector_summary(market["us_sectors"]),
+                "text": "📈 *セクター動向（米国）*\n```\n"
+                + _format_sector_bars(market["us_sectors"]) + "\n```",
             },
         })
 
@@ -85,11 +89,28 @@ def build_report_blocks(data: dict) -> list[dict]:
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "📈 *セクター動向（日本）*\n  " + _format_sector_summary(market["jp_sectors"]),
+                "text": "📈 *セクター動向（日本）*\n```\n"
+                + _format_sector_bars(market["jp_sectors"]) + "\n```",
             },
         })
 
     blocks.append({"type": "divider"})
+
+    anomalies: list[PriceData] = data.get("volume_anomalies", [])
+    if anomalies:
+        anomaly_lines = [
+            f"{s.ticker:<12} {s.name:<16} 通常比 {s.volume_ratio:.1f}倍  "
+            f"({_pct_str(s.change_pct)} {_arrow(s.change_pct)})"
+            for s in anomalies[:8]
+        ]
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "⚡ *出来高急増アラート*\n```\n" + "\n".join(anomaly_lines) + "\n```",
+            },
+        })
+        blocks.append({"type": "divider"})
 
     mover_explanations: dict[str, str] = summary.mover_explanations if summary else {}
 
@@ -103,10 +124,9 @@ def build_report_blocks(data: dict) -> list[dict]:
         mover_lines = []
         for s in movers[:10]:
             line = f"{s.ticker:<12} {s.name:<16} {s.price:>10,.2f}  {_pct_str(s.change_pct)} {_arrow(s.change_pct)}"
-            if s.volume and s.avg_volume and s.avg_volume > 0:
-                ratio = s.volume / s.avg_volume
-                if ratio >= 1.5:
-                    line += f"  出来高 {ratio:.1f}倍"
+            ratio = s.volume_ratio
+            if ratio is not None and ratio >= 1.5:
+                line += f"  出来高 {ratio:.1f}倍"
             mover_lines.append(line)
             explanation = mover_explanations.get(s.ticker)
             if explanation:

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import responses as resp_module
-from reporters.slack import post_report, build_report_blocks
+from reporters.slack import post_report, build_report_blocks, _format_sector_bars
 from collectors.market import PriceData
 from collectors.news import NewsItem
 from collectors.calendar import EconomicEvent
@@ -68,6 +68,48 @@ def test_build_report_blocks_contains_claude_summary():
     blocks = build_report_blocks(make_report_data())
     all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
     assert "CPIに注目" in all_text
+
+
+def test_format_sector_bars_sorts_desc_with_bars():
+    sectors = [
+        PriceData("XLE", "エネルギー", 88.0, -0.8),
+        PriceData("XLK", "テクノロジー", 210.0, 1.4),
+        PriceData("XLF", "金融", 40.0, 0.6),
+    ]
+    out = _format_sector_bars(sectors)
+    lines = out.splitlines()
+    assert len(lines) == 3
+    assert "テクノロジー" in lines[0]
+    assert "エネルギー" in lines[-1]
+    assert "█" in lines[0]
+    assert "▒" in lines[-1]
+
+
+def test_sector_section_renders_bar_chart():
+    blocks = build_report_blocks(make_report_data())
+    all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
+    assert "█" in all_text
+    assert "テクノロジー" in all_text
+    assert "エネルギー" in all_text
+
+
+def test_volume_anomaly_section_lists_spiking_stocks():
+    data = make_report_data()
+    data["volume_anomalies"] = [
+        PriceData("WDC", "Western Digital", 55.0, 0.4,
+                  volume=40_000_000, avg_volume=10_000_000)
+    ]
+    blocks = build_report_blocks(data)
+    all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
+    assert "出来高急増" in all_text
+    assert "WDC" in all_text
+    assert "4.0" in all_text
+
+
+def test_volume_anomaly_section_omitted_when_empty():
+    blocks = build_report_blocks(make_report_data())
+    all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
+    assert "出来高急増" not in all_text
 
 
 @resp_module.activate

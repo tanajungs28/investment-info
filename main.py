@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from collectors.market import get_market_data, PriceData
+from collectors.market import get_market_data, detect_volume_anomalies, PriceData
 from collectors.news import collect_news
 from collectors.calendar import parse_forex_factory_events
 from collectors.web_search import fetch_mover_news
@@ -75,6 +75,10 @@ def run(webhook_url: str, anthropic_api_key: str) -> bool:
     movers = [s for s in all_stocks_data if isinstance(s, PriceData) and abs(s.change_pct) >= 1.0]
     mover_news = fetch_mover_news(movers) if movers else {}
 
+    logger.info("Detecting volume anomalies...")
+    spike_ratio = st.get("alerts", {}).get("volume_spike_ratio", 2.0)
+    anomalies = detect_volume_anomalies(all_stocks_data, threshold=spike_ratio)
+
     logger.info("Generating Claude summary...")
     summary = generate_summary(
         news_items=news,
@@ -86,7 +90,13 @@ def run(webhook_url: str, anthropic_api_key: str) -> bool:
 
     logger.info("Posting to Slack...")
     result = post_report(
-        data={"market": market, "news": news, "calendar": calendar, "summary": summary},
+        data={
+            "market": market,
+            "news": news,
+            "calendar": calendar,
+            "summary": summary,
+            "volume_anomalies": anomalies,
+        },
         webhook_url=webhook_url,
     )
 

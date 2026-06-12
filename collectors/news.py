@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import calendar
 import logging
+import re
 
 import feedparser
 import yfinance as yf
@@ -27,9 +28,13 @@ def fetch_rss_news(
         feed = feedparser.parse(url)
         items = []
         for entry in feed.entries:
+            # RDF形式 (dc:date) のフィードは updated_parsed にしか日付を持たない
+            parsed = getattr(entry, "published_parsed", None) or getattr(
+                entry, "updated_parsed", None
+            )
             try:
                 published = datetime.fromtimestamp(
-                    calendar.timegm(entry.published_parsed), tz=timezone.utc
+                    calendar.timegm(parsed), tz=timezone.utc
                 )
             except Exception:
                 continue
@@ -53,11 +58,15 @@ def match_tickers(items: list[NewsItem], watchlist: list[dict]) -> list[NewsItem
     for item in items:
         for stock in watchlist:
             ticker_bare = stock["ticker"].replace(".T", "")
-            name = stock["name"]
-            title_upper = item.title.upper()
-            if ticker_bare.upper() in title_upper or name in item.title:
-                if stock["ticker"] not in item.tickers:
-                    item.tickers.append(stock["ticker"])
+            names = [stock["name"], *stock.get("aliases", [])]
+            name_hit = any(n and n in item.title for n in names)
+            # ティッカーは単語境界で照合する（"MO" が "MORNING" に
+            # 誤マッチするのを防ぐ）
+            ticker_hit = bool(
+                re.search(rf"\b{re.escape(ticker_bare)}\b", item.title, re.IGNORECASE)
+            )
+            if (name_hit or ticker_hit) and stock["ticker"] not in item.tickers:
+                item.tickers.append(stock["ticker"])
     return items
 
 

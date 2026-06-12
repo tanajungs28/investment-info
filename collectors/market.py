@@ -18,6 +18,22 @@ class PriceData:
     volume: int | None = None
     avg_volume: int | None = None
 
+    @property
+    def volume_ratio(self) -> float | None:
+        if not self.volume or not self.avg_volume:
+            return None
+        return round(self.volume / self.avg_volume, 2)
+
+
+def detect_volume_anomalies(
+    stocks: list[PriceData], threshold: float = 2.0
+) -> list[PriceData]:
+    flagged = [
+        s for s in stocks
+        if s.volume_ratio is not None and s.volume_ratio >= threshold
+    ]
+    return sorted(flagged, key=lambda s: s.volume_ratio, reverse=True)
+
 
 def get_price_data(ticker: str, name: str, retries: int = 3) -> PriceData | None:
     for attempt in range(retries):

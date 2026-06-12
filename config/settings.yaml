@@ -7,10 +7,15 @@ news:
   lookback_hours: 24
   rss_feeds:
     jp:
-      - url: "https://kabutan.jp/news/rss/"
-        name: "株探"
-      - url: "https://feeds.reuters.com/reuters/JPBusinessNews"
-        name: "Reuters Japan"
+      - url: "https://news.yahoo.co.jp/rss/topics/business.xml"
+        name: "Yahoo!ニュース 経済"
+      - url: "https://www3.nhk.or.jp/rss/news/cat5.xml"
+        name: "NHK 経済"
+      - url: "https://assets.wor.jp/rss/rdf/nikkei/markets.rdf"
+        name: "日経 マーケット"
+
+alerts:
+  volume_spike_ratio: 2.0
 
 calendar:
   forex_factory_rss: "https://www.forexfactory.com/ff_calendar_thisweek.xml"

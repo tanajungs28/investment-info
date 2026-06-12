@@ -94,6 +94,26 @@ def test_run_stores_to_firestore_when_configured(
 @patch("main.parse_forex_factory_events", return_value=[])
 @patch("main.collect_news", return_value=[])
 @patch("main.get_market_data")
+def test_run_derives_project_id_from_service_account_json(
+    mock_market, mock_news, mock_calendar, mock_summary, mock_post, mock_store
+):
+    mock_market.return_value = {**EMPTY_MARKET, "timestamp": datetime.now(timezone.utc)}
+    env = {k: v for k, v in os.environ.items() if k != "FIREBASE_PROJECT_ID"}
+    env["FIREBASE_SERVICE_ACCOUNT"] = (
+        '{"type": "service_account", "project_id": "derived-project"}'
+    )
+    with patch.dict(os.environ, env, clear=True):
+        run(webhook_url="https://hooks.slack.com/test", anthropic_api_key="test-key")
+    assert mock_store.called
+    assert mock_store.call_args.kwargs["project_id"] == "derived-project"
+
+
+@patch("main.store_report", return_value=True)
+@patch("main.post_report", return_value=True)
+@patch("main.generate_summary", return_value=None)
+@patch("main.parse_forex_factory_events", return_value=[])
+@patch("main.collect_news", return_value=[])
+@patch("main.get_market_data")
 def test_run_skips_firestore_when_not_configured(
     mock_market, mock_news, mock_calendar, mock_summary, mock_post, mock_store
 ):

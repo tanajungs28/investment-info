@@ -8,3 +8,5 @@ logs/stdout.log
 logs/stderr.log
 venv/
 .DS_Store
+.vercel
+config/firebase-service-account.json

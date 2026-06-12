@@ -98,18 +98,23 @@ def run(webhook_url: str, anthropic_api_key: str) -> bool:
         "volume_anomalies": anomalies,
     }
 
-    firebase_project = os.environ.get("FIREBASE_PROJECT_ID")
     firebase_sa_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
-    if firebase_project and firebase_sa_json:
-        logger.info("Storing report data to Firestore...")
+    if firebase_sa_json:
         # 永続化の失敗でレポート投稿は止めない
         try:
             sa_info = json.loads(firebase_sa_json)
-            store_report(
-                report_data,
-                project_id=firebase_project,
-                service_account_info=sa_info,
+            firebase_project = os.environ.get(
+                "FIREBASE_PROJECT_ID", sa_info.get("project_id")
             )
+            if firebase_project:
+                logger.info("Storing report data to Firestore...")
+                store_report(
+                    report_data,
+                    project_id=firebase_project,
+                    service_account_info=sa_info,
+                )
+            else:
+                logger.error("Firebase project id not found; skipping persistence.")
         except json.JSONDecodeError as e:
             logger.error("FIREBASE_SERVICE_ACCOUNT is not valid JSON: %s", e)
     else:

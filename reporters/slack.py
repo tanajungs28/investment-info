@@ -21,6 +21,17 @@ def _pct_str(change_pct: float) -> str:
     return f"{sign}{change_pct:.2f}%"
 
 
+def _mrkdwn_escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _news_link(item) -> str:
+    title = _mrkdwn_escape(item.title)
+    if not item.url:
+        return title
+    return f"<{item.url}|{title}>"
+
+
 def _format_index_line(s: PriceData) -> str:
     return f"{s.name:<20} {s.price:>12,.2f}  {_pct_str(s.change_pct)} {_arrow(s.change_pct)}"
 
@@ -155,9 +166,9 @@ def build_report_blocks(data: dict) -> list[dict]:
         news_lines = []
         for ticker, items_for_ticker in list(ticker_news.items())[:12]:
             for item in items_for_ticker[:3]:
-                news_lines.append(f"[{ticker}] {item.title}  _({item.source})_")
+                news_lines.append(f"[{ticker}] {_news_link(item)}  _({item.source})_")
         for item in general_news[:5]:
-            news_lines.append(f"[市場全般] {item.title}  _({item.source})_")
+            news_lines.append(f"[市場全般] {_news_link(item)}  _({item.source})_")
         blocks.append({
             "type": "section",
             "text": {"type": "mrkdwn", "text": "📰 *注目ニュース*\n" + "\n".join(news_lines)},

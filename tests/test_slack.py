@@ -93,6 +93,45 @@ def test_sector_section_renders_bar_chart():
     assert "エネルギー" in all_text
 
 
+def test_news_items_are_rendered_as_tappable_links():
+    blocks = build_report_blocks(make_report_data())
+    all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
+    assert "<http://example.com|NVIDIAが新型GPU発表>" in all_text
+
+
+def test_news_item_without_url_falls_back_to_plain_title():
+    data = make_report_data()
+    data["news"] = [
+        NewsItem(
+            title="リンクなしニュース",
+            url="",
+            source="Test",
+            published=datetime.now(timezone.utc),
+            tickers=["NVDA"],
+        )
+    ]
+    blocks = build_report_blocks(data)
+    all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
+    assert "リンクなしニュース" in all_text
+    assert "<|" not in all_text
+
+
+def test_news_title_special_chars_are_escaped_for_slack():
+    data = make_report_data()
+    data["news"] = [
+        NewsItem(
+            title="A & B <速報>",
+            url="http://example.com/ab",
+            source="Test",
+            published=datetime.now(timezone.utc),
+            tickers=["NVDA"],
+        )
+    ]
+    blocks = build_report_blocks(data)
+    all_text = " ".join(str(b.get("text", {}).get("text", "")) for b in blocks)
+    assert "<http://example.com/ab|A &amp; B &lt;速報&gt;>" in all_text
+
+
 def test_volume_anomaly_section_lists_spiking_stocks():
     data = make_report_data()
     data["volume_anomalies"] = [

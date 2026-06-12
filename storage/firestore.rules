@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// daily_reports は誰でも読み取り可（ダッシュボードが Web API キーで読む）。
+// 書き込みはサービスアカウント（Admin 権限、ルールをバイパス）のみ。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /daily_reports/{date} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

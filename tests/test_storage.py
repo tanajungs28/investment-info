@@ -1,15 +1,19 @@
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 import responses as resp_module
 
-from storage.supabase_store import build_rows, store_report
+from storage.firestore_store import build_report_doc, to_firestore_fields, store_report
 from collectors.market import PriceData
 from collectors.news import NewsItem
 from collectors.calendar import EconomicEvent
 from reporters.claude_client import SummaryResult
 
-SUPABASE_URL = "https://test-project.supabase.co"
-SERVICE_KEY = "service-role-test-key"
+PROJECT_ID = "test-project"
+DOC_URL = (
+    "https://firestore.googleapis.com/v1/projects/test-project"
+    "/databases/(default)/documents/daily_reports/2026-06-12"
+)
 
 
 def make_data() -> dict:
@@ -43,11 +47,10 @@ def make_data() -> dict:
     }
 
 
-def test_build_rows_tags_market_rows_with_category_and_date():
-    rows = build_rows(make_data())
-    market_rows = rows["market_snapshots"]
-    assert all(r["snapshot_date"] == "2026-06-12" for r in market_rows)
-    categories = {r["ticker"]: r["category"] for r in market_rows}
+def test_build_report_doc_has_date_and_categorized_market_rows():
+    doc = build_report_doc(make_data())
+    assert doc["snapshot_date"] == "2026-06-12"
+    categories = {r["ticker"]: r["category"] for r in doc["market"]}
     assert categories["NVDA"] == "us_stock"
     assert categories["7203.T"] == "jp_stock"
     assert categories["XLK"] == "us_sector"
@@ -55,60 +58,60 @@ def test_build_rows_tags_market_rows_with_category_and_date():
     assert categories["JPY=X"] == "forex"
 
 
-def test_build_rows_includes_volume_fields():
-    rows = build_rows(make_data())
-    nvda = next(r for r in rows["market_snapshots"] if r["ticker"] == "NVDA")
-    assert nvda["volume"] == 50_000_000
-    assert nvda["avg_volume"] == 30_000_000
+def test_build_report_doc_serializes_news_and_summary():
+    doc = build_report_doc(make_data())
+    assert doc["news"][0]["tickers"] == ["NVDA"]
+    assert doc["news"][0]["published"].startswith("2026-06-12T01:00")
+    assert doc["summary"]["key_points"] == ["① CPIに注目"]
+    assert doc["calendar"][0]["importance"] == 3
 
 
-def test_build_rows_serializes_news_with_tickers_and_iso_date():
-    rows = build_rows(make_data())
-    news = rows["news_items"]
-    assert len(news) == 1
-    assert news[0]["tickers"] == ["NVDA"]
-    assert news[0]["published"].startswith("2026-06-12T01:00")
-
-
-def test_build_rows_serializes_summary_and_calendar():
-    rows = build_rows(make_data())
-    assert rows["daily_summaries"][0]["key_points"] == ["① CPIに注目"]
-    assert rows["daily_summaries"][0]["mover_explanations"] == {"NVDA": "新型GPU発表で上昇。"}
-    assert rows["calendar_events"][0]["title"] == "CPI (MoM)"
-    assert rows["calendar_events"][0]["importance"] == 3
-
-
-def test_build_rows_skips_summary_when_none():
+def test_build_report_doc_summary_none():
     data = make_data()
     data["summary"] = None
-    rows = build_rows(data)
-    assert rows["daily_summaries"] == []
+    doc = build_report_doc(data)
+    assert doc["summary"] is None
+
+
+def test_to_firestore_fields_encodes_all_types():
+    fields = to_firestore_fields({
+        "s": "text",
+        "i": 42,
+        "f": 1.5,
+        "b": True,
+        "n": None,
+        "arr": ["a", 1],
+        "map": {"k": "v"},
+    })
+    assert fields["s"] == {"stringValue": "text"}
+    assert fields["i"] == {"integerValue": "42"}
+    assert fields["f"] == {"doubleValue": 1.5}
+    assert fields["b"] == {"booleanValue": True}
+    assert fields["n"] == {"nullValue": None}
+    assert fields["arr"]["arrayValue"]["values"][0] == {"stringValue": "a"}
+    assert fields["map"]["mapValue"]["fields"]["k"] == {"stringValue": "v"}
 
 
 @resp_module.activate
-def test_store_report_posts_to_all_tables_with_auth_headers():
-    for table in ["market_snapshots", "news_items", "calendar_events", "daily_summaries"]:
-        resp_module.add(
-            resp_module.POST, f"{SUPABASE_URL}/rest/v1/{table}", status=201
-        )
-    result = store_report(make_data(), SUPABASE_URL, SERVICE_KEY)
+@patch("storage.firestore_store._get_access_token", return_value="test-token")
+def test_store_report_patches_daily_report_document(mock_token):
+    resp_module.add(resp_module.PATCH, DOC_URL, json={"name": "ok"}, status=200)
+    result = store_report(make_data(), project_id=PROJECT_ID, service_account_info={})
     assert result is True
-    assert len(resp_module.calls) == 4
-    first = resp_module.calls[0].request
-    assert first.headers["apikey"] == SERVICE_KEY
-    assert first.headers["Authorization"] == f"Bearer {SERVICE_KEY}"
-    assert "resolution=merge-duplicates" in first.headers["Prefer"]
+    req = resp_module.calls[0].request
+    assert req.headers["Authorization"] == "Bearer test-token"
+    assert '"snapshot_date"' in req.body if isinstance(req.body, str) else b'"snapshot_date"' in req.body
 
 
 @resp_module.activate
-def test_store_report_returns_false_but_continues_on_table_error():
-    resp_module.add(
-        resp_module.POST, f"{SUPABASE_URL}/rest/v1/market_snapshots", status=500
-    )
-    for table in ["news_items", "calendar_events", "daily_summaries"]:
-        resp_module.add(
-            resp_module.POST, f"{SUPABASE_URL}/rest/v1/{table}", status=201
-        )
-    result = store_report(make_data(), SUPABASE_URL, SERVICE_KEY)
+@patch("storage.firestore_store._get_access_token", return_value="test-token")
+def test_store_report_returns_false_on_http_error(mock_token):
+    resp_module.add(resp_module.PATCH, DOC_URL, status=403)
+    result = store_report(make_data(), project_id=PROJECT_ID, service_account_info={})
     assert result is False
-    assert len(resp_module.calls) == 4
+
+
+@patch("storage.firestore_store._get_access_token", side_effect=ValueError("bad key"))
+def test_store_report_returns_false_on_auth_error(mock_token):
+    result = store_report(make_data(), project_id=PROJECT_ID, service_account_info={})
+    assert result is False

@@ -1,23 +1,41 @@
-# Phase 3 セットアップ手順（Supabase + Vercel）
+# Phase 3 セットアップ手順（Firebase + Vercel）
 
-コードは Supabase / Vercel のキーがなくても動く設計です:
-- **エージェント**: `SUPABASE_URL` 未設定なら永続化をスキップして Slack 投稿のみ行う
-- **ダッシュボード**: Supabase 未接続ならデモデータを表示（DEMO DATA バッジ付き）
+コードは Firebase のキーがなくても動く設計です:
+- **エージェント**: `FIREBASE_PROJECT_ID` 未設定なら永続化をスキップして Slack 投稿のみ行う
+- **ダッシュボード**: Firebase 未接続ならデモデータを表示（DEMO DATA バッジ付き）
+
+Vercel デプロイと GitHub 連携は設定済み:
+- 本番 URL: https://investment-dashboard-rosy-six.vercel.app
+- main への push で自動デプロイ（Root Directory = `dashboard`）
 
 以下を済ませると本稼働に切り替わります。
 
 ---
 
-## 1. Supabase プロジェクト作成
+## 1. Firebase プロジェクト作成
 
-1. https://supabase.com → New project（無料枠でOK、リージョンは Tokyo 推奨）
-2. SQL Editor で `storage/schema.sql` の内容を実行（テーブル4つ + RLS 設定）
-3. Project Settings → API から以下を控える:
-   - **Project URL** (`https://xxxx.supabase.co`)
-   - **service_role key**（エージェントの書き込み用・秘匿）
-   - **anon key**（ダッシュボードの読み取り用・公開可）
+1. https://console.firebase.google.com → プロジェクトを追加（無料の Spark プランでOK）
+2. 構築 → **Firestore Database** → データベースを作成
+   - ロケーション: `asia-northeast1`（東京）推奨
+   - **本番環境モード**で開始
+3. Firestore の「ルール」タブに `storage/firestore.rules` の内容を貼り付けて公開
+   （`daily_reports` コレクションのみ誰でも読み取り可・書き込みは不可）
 
-## 2. エージェント側の設定
+## 2. キーの取得（2種類）
+
+### サービスアカウント（エージェントの書き込み用・秘匿）
+
+プロジェクトの設定（歯車）→ サービスアカウント → **新しい秘密鍵の生成**
+→ JSON ファイルがダウンロードされる。**中身の JSON 文字列全体**を使う。
+
+### Web API キー（ダッシュボードの読み取り用・公開可）
+
+プロジェクトの設定 → 全般 → 「ウェブ API キー」をコピー。
+（表示されない場合はアプリの追加 → ウェブを一度作成すると表示される）
+
+あわせて**プロジェクト ID**（設定 → 全般）も控える。
+
+## 3. エージェント側の設定
 
 ### GitHub Actions（本番）
 
@@ -25,40 +43,49 @@
 
 | Secret 名 | 値 |
 |---|---|
-| `SUPABASE_URL` | Project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role key |
+| `FIREBASE_PROJECT_ID` | プロジェクト ID |
+| `FIREBASE_SERVICE_ACCOUNT` | サービスアカウント JSON の中身（1ファイル丸ごと） |
 
 ### ローカル（手動実行用・任意）
 
-`.env` に追記:
+`.env` に追記（JSON は1行に潰して貼る）:
 
 ```
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"...",...}
 ```
 
-設定後、`./run.sh` か Actions の手動実行で1回流すと初日のデータが入る。
+## 4. ダッシュボード側の設定（Vercel）
 
-## 3. Vercel デプロイ
+```bash
+cd dashboard
+vercel env add NEXT_PUBLIC_FIREBASE_PROJECT_ID production
+vercel env add NEXT_PUBLIC_FIREBASE_API_KEY production
+vercel deploy --prod --yes
+```
 
-1. https://vercel.com → Add New Project → このリポジトリを import
-2. **Root Directory を `dashboard` に設定**（重要）
-3. Environment Variables に追加:
+（または Vercel ダッシュボードの Project Settings → Environment Variables から）
 
-| 変数名 | 値 |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon key |
+## 5. 動作確認
 
-4. Deploy。以降 main への push で自動デプロイ。
-
-> anon キーは RLS により**読み取り専用**（`storage/schema.sql` で public read ポリシーのみ付与、書き込みは service_role のみ）。
-
-## 4. 動作確認
-
-- エージェント実行後、Supabase Table Editor で `market_snapshots` に行が入っていること
-- ダッシュボード URL を開いて DEMO DATA バッジが**消えている**こと
+- エージェント実行後、Firebase Console の Firestore で
+  `daily_reports/{日付}` ドキュメントが入っていること
+- ダッシュボード URL で DEMO DATA バッジが**消えている**こと
 - スパークラインは履歴が2日分以上溜まると表示される
+
+## データモデル
+
+`daily_reports/{YYYY-MM-DD}` に1日1ドキュメント:
+
+```
+snapshot_date: "2026-06-12"
+market:   [ {category, ticker, name, price, change_pct, volume, avg_volume} ]
+news:     [ {title, url, source, published, tickers} ]
+calendar: [ {time, currency, title, importance} ]
+summary:  { key_points: [...], mover_explanations: {ticker: 説明} } | null
+```
+
+書き込みは1日1回の upsert のみなので Spark プランの無料枠で十分収まる。
 
 ## ローカル開発
 

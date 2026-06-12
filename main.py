@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import logging
 import os
 from pathlib import Path
@@ -12,7 +13,7 @@ from collectors.calendar import parse_forex_factory_events
 from collectors.web_search import fetch_mover_news
 from reporters.claude_client import generate_summary
 from reporters.slack import post_report
-from storage.supabase_store import store_report
+from storage.firestore_store import store_report
 
 load_dotenv()
 
@@ -97,14 +98,22 @@ def run(webhook_url: str, anthropic_api_key: str) -> bool:
         "volume_anomalies": anomalies,
     }
 
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if supabase_url and supabase_key:
-        logger.info("Storing report data to Supabase...")
+    firebase_project = os.environ.get("FIREBASE_PROJECT_ID")
+    firebase_sa_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+    if firebase_project and firebase_sa_json:
+        logger.info("Storing report data to Firestore...")
         # 永続化の失敗でレポート投稿は止めない
-        store_report(report_data, supabase_url=supabase_url, service_key=supabase_key)
+        try:
+            sa_info = json.loads(firebase_sa_json)
+            store_report(
+                report_data,
+                project_id=firebase_project,
+                service_account_info=sa_info,
+            )
+        except json.JSONDecodeError as e:
+            logger.error("FIREBASE_SERVICE_ACCOUNT is not valid JSON: %s", e)
     else:
-        logger.info("Supabase not configured; skipping persistence.")
+        logger.info("Firebase not configured; skipping persistence.")
 
     logger.info("Posting to Slack...")
     result = post_report(data=report_data, webhook_url=webhook_url)

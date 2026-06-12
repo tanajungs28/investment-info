@@ -72,17 +72,20 @@ def test_run_passes_volume_anomalies_to_report(
 @patch("main.parse_forex_factory_events", return_value=[])
 @patch("main.collect_news", return_value=[])
 @patch("main.get_market_data")
-def test_run_stores_to_supabase_when_configured(
+def test_run_stores_to_firestore_when_configured(
     mock_market, mock_news, mock_calendar, mock_summary, mock_post, mock_store
 ):
     mock_market.return_value = {**EMPTY_MARKET, "timestamp": datetime.now(timezone.utc)}
     with patch.dict(os.environ, {
-        "SUPABASE_URL": "https://test.supabase.co",
-        "SUPABASE_SERVICE_ROLE_KEY": "service-key",
+        "FIREBASE_PROJECT_ID": "test-project",
+        "FIREBASE_SERVICE_ACCOUNT": '{"type": "service_account"}',
     }):
         run(webhook_url="https://hooks.slack.com/test", anthropic_api_key="test-key")
     assert mock_store.called
-    assert mock_store.call_args.kwargs["supabase_url"] == "https://test.supabase.co"
+    assert mock_store.call_args.kwargs["project_id"] == "test-project"
+    assert mock_store.call_args.kwargs["service_account_info"] == {
+        "type": "service_account"
+    }
 
 
 @patch("main.store_report", return_value=True)
@@ -91,12 +94,12 @@ def test_run_stores_to_supabase_when_configured(
 @patch("main.parse_forex_factory_events", return_value=[])
 @patch("main.collect_news", return_value=[])
 @patch("main.get_market_data")
-def test_run_skips_supabase_when_not_configured(
+def test_run_skips_firestore_when_not_configured(
     mock_market, mock_news, mock_calendar, mock_summary, mock_post, mock_store
 ):
     mock_market.return_value = {**EMPTY_MARKET, "timestamp": datetime.now(timezone.utc)}
     env = {k: v for k, v in os.environ.items()
-           if k not in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")}
+           if k not in ("FIREBASE_PROJECT_ID", "FIREBASE_SERVICE_ACCOUNT")}
     with patch.dict(os.environ, env, clear=True):
         result = run(webhook_url="https://hooks.slack.com/test", anthropic_api_key="test-key")
     assert result is True

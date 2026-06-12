@@ -15,17 +15,21 @@ from reporters.slack import post_report
 
 load_dotenv()
 
+BASE_DIR = Path(__file__).parent
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("logs/error.log"),
+        logging.FileHandler(LOG_DIR / "error.log"),
     ],
 )
 logger = logging.getLogger(__name__)
 
-CONFIG_DIR = Path(__file__).parent / "config"
+CONFIG_DIR = BASE_DIR / "config"
 
 
 def load_config() -> dict:
